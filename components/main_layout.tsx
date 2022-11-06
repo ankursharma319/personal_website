@@ -1,11 +1,16 @@
 import Head from 'next/head'
 import Image from 'next/image'
+import { useContext, useEffect } from 'react';
+import { ThemeContext } from './theme_context';
 import CommonFooter from '../components/common_footer'
 import CommonHeader from '../components/common_header'
 
-export default function MainLayout({children}:{children:any}) {
-  return (
-    <div className='dark'>
+export default function MainLayout({children, setTheme}:{children:any, setTheme:(theme:string)=>void}) {
+    
+    const theme = useContext(ThemeContext);
+
+    return (
+    <div className={theme}>
     <Head>
     <title>Ankurs Blog</title>
     <meta name="description" content="Ankur's personal website with a blog about random topics in software development, mainly C++ and Linux." />
@@ -16,9 +21,9 @@ export default function MainLayout({children}:{children:any}) {
     <link rel="manifest" href="/site.webmanifest"/>
     </Head>
 
-    <div className=" bg-stone-200 dark:bg-stone-800 dark:text-stone-200 text-stone-800 flex flex-col min-h-screen">
+    <div className=" bg-stone-300 dark:bg-stone-900 dark:text-stone-300 text-stone-900 flex flex-col min-h-screen">
 
-      <CommonHeader/>
+      <CommonHeader setTheme={setTheme}/>
       <main className='flex-grow'>
         <h1>
           Welcome to <a href="https://nextjs.org">Next.js!</a>
