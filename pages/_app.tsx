@@ -1,7 +1,7 @@
 import '../styles/globals.css'
 import type { AppProps } from 'next/app'
 import { useEffect, useState } from 'react';
-import { ThemeContext } from '../components/theme_context';
+import { ThemeContext, SetThemeContext } from '../components/theme_context';
 import { Analytics } from '@vercel/analytics/react';
 
 function setCookie(cname:string, cvalue:string, exdays:number) {
@@ -31,7 +31,6 @@ export default function App({ Component, pageProps }: AppProps) {
       setTheme(theme);
       setCookie("theme", theme, 30);
   }
-  const props_to_pass = {...pageProps, setTheme: setThemeAndUpdateCookie};
 
   useEffect(()=>{
     const current_theme = getCookie("theme") ?? "dark";
@@ -40,8 +39,10 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return <>
   <ThemeContext.Provider value={theme}>
-    <Component {...props_to_pass} />
+  <SetThemeContext.Provider value={setThemeAndUpdateCookie}>
+    <Component {...pageProps} />
     <Analytics/>
+  </SetThemeContext.Provider>
   </ThemeContext.Provider>
   </>
 }

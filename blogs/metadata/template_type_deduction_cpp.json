@@ -1,0 +1,10 @@
+{
+    "id":"template_type_deduction_cpp",
+    "title": "`template` and `auto` type deduction in C++",
+    "description": "Examples of what the types of auto and templates actually deduce to, in common cases.",
+    "author": "Ankur Sharma",
+    "date": "2021-11-11",
+    "keywords": ["c++", "templates"],
+    "category": "C++",
+    "cover_image_url": "/images/c++_templates_icon.jpeg"
+}

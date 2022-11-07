@@ -1,13 +1,15 @@
 import { useContext } from "react"
-import { ThemeContext } from "./theme_context"
+import { SetThemeContext, ThemeContext } from "./theme_context"
 
-export default function DarkModeToggle({onToggle} : {onToggle:(theme: string)=>void}) {
+export default function DarkModeToggle() {
     const theme = useContext(ThemeContext);
+    let setTheme: (theme:string)=>void = useContext(SetThemeContext);
+
     function handleClick() {
         if (theme == 'dark') {
-            onToggle("light");
+            setTheme("light");
         } else {
-            onToggle("dark");
+            setTheme("dark");
         }
     }
     if (theme == 'light') {
