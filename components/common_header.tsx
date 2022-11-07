@@ -12,7 +12,7 @@ const my_nav_objs: { name: string, link: string }[] = [
 export default function CommonHeader({setTheme}:{setTheme:(theme:string)=>void}) {
     return (
         <header>
-            <div className="flex flex-row p-1 gap-4 border-b-4 border-sky-800 h-16 items-center justify-between">
+            <div className="flex flex-row p-1 gap-4 border-b-4 dark:border-stone-800 border-stone-400 h-16 items-center justify-between">
                 <div className="justify-start flex flex-row p-2 gap-4 items-center">
                     {my_nav_objs.map((nav_obj) => (
                         <Link key={nav_obj.name} href={nav_obj.link} className="text-stone-600 hover:text-stone-800 dark:text-stone-400 hover:dark:text-stone-200">{nav_obj.name}</Link>

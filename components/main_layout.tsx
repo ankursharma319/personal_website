@@ -21,18 +21,14 @@ export default function MainLayout({children, setTheme}:{children:any, setTheme:
     <link rel="manifest" href="/site.webmanifest"/>
     </Head>
 
-    <div className=" bg-stone-300 dark:bg-stone-900 dark:text-stone-300 text-stone-900 flex flex-col min-h-screen">
-
+    <div className='flex flex-row justify-center  bg-stone-300 dark:bg-stone-900 dark:text-stone-300 text-stone-900'>
+    <div className="flex flex-col min-h-screen max-w-screen-lg">
       <CommonHeader setTheme={setTheme}/>
-      <main className='flex-grow'>
-        <h1>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-        <p>Some more content here - todo</p>
+      <main className='flex-grow p-4'>
         {children}
       </main>
       <CommonFooter/>
-
+    </div>
     </div>
     </div>
   )
