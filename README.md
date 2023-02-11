@@ -10,6 +10,12 @@ Use nix-shell to create a node environment.
 nix-shell shell.nix
 ```
 
+Install dependencies:
+
+```
+npm install
+```
+
 Run the development server:
 
 ```bash
