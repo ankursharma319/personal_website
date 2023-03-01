@@ -7,7 +7,7 @@ Even if you trust the code, providing isolation like this is super useful to be 
 
 Docker containers are a prime example of this.
 
-## Plain old linux processes and users 
+## Plain old linux processes and users
 
 Are linux processes not isolated from each other? In some ways, yes, a process provides some isolation, such as -
  - A process's virtual address space is fully isolated from another, so memory is isolated (unless explicitly using shared memory)
@@ -16,18 +16,27 @@ Are linux processes not isolated from each other? In some ways, yes, a process p
 However, the filesystem is shared. Process can open, read and modify directories, files, named pipes, message queues etc. (those which the processes effective user has permission to access).
 
 A process can easily get information about other processes by looking at /proc/ and further inspect and control them using ptrace system call. The ptrace() system call provides a means by which one process (the "tracer") may observe and control the execution of another process (the "tracee").
-This system call is also used for implementing debuggers like gdb. Therefore, it is not far fetched that a rogue process can potentially mess with other processes if permissions are right, for e.g. changing the memory addresses and register.
+This system call is also used for implementing debuggers like gdb. Therefore, it is not far fetched that a rogue process can potentially mess with other processes if permissions are right, for e.g. changing the memory addresses and registers.
 
 Also, the hardware resources such as CPU, RAM, network interfaces etc. are shared. So it is possible for one process to hoard compute resources.
 A sufficiently priviliged process can change the system hostname, ip tables, network interfaces, firewall rules, occupy sockets/ports and so on.
 
-Clearly plain processes are often not isolated enough.
+Clearly plain processes are often not isolated enough for a lot of use cases.
 
 ## Why run untrusted code in priviliged mode?
 
-A common thread in the above is that a process needs to have sufficient priviliges in order to do evil things. For e.g. a process running as root will be able to do a lot of bad things to other.
+A common thread in the above is that a process needs to have sufficient priviliges in order to do evil things. For e.g. in order to access a file, it must have the appropriate read, write and execute permissions for the user and group of the effective user of the process .
 
-Now the question, you might ask is: why not just run the process as a user with very little or no permissions (limited capabilities and limited filesystem access). Well, that is possible, but sometimes a process legitimately needs elevated access to perform its work. The traditional way this was done (and is still done quite widely) is to run the processes as root.
+```bash
+ls -lsah ~/.ssh/config
+# 8 -rw-r--r--   1 ankurs4  staff   1.1K Mar  1 00:23 config
+# can only by written to by user running as ankurs4 (or root)
+
+ps aux | grep -i my_process
+# TODO
+```
+
+A process running as root will be able to do a lot of bad things to filesystem, system resources & other processes. Now the question, you might ask is: why not just run the process as a user with very little or no permissions (limited capabilities and limited filesystem access). Well, that is possible, but sometimes a process legitimately needs elevated access to perform its work. For e.g. - server software such as web servers or databases may require root-level access in order to listen on privileged ports or to access certain system resources. The traditional way this was done (and is still done quite widely) is to run the processes as root.
 
 ## Aside: setuid/setgid
 
@@ -69,7 +78,7 @@ There is 3 different ways, we can go about this, depending on the use case:
  }
  ```
 
- 2. Have a single binary in which the main function sets up the sandbox before calling the applications code. This is the easiest one to develop with since everything is contained in a single executable but its not a good approach if you dont have access to the code of the application at sandbox compile time or if you want to use the sandbox for multiple applications.
+ 2. Have a single binary in which the main function sets up the sandbox before calling the applications code. This is the easiest one to develop with since everything is contained in a single executable but its not a good approach if you dont have access to the code of the application at sandbox compile time or if you want to use the sandbox for precompiled binaries.
 
  ```c
  #include "application.h"
@@ -80,7 +89,7 @@ There is 3 different ways, we can go about this, depending on the use case:
  }
  ```
 
- 3. Have a binary for the application and a shared library which overwrites the std library's entry point function and sets up the sandbox before calling the main function. Then the application can be run like this: `LD_PRELOAD=./sandbox.so ./my_app arg1 arg2`. (`LD_PRELOAD` is used to override symbols in the stock libraries by creating a library with the same symbols). This can be a ok approach but relies on overriding stdlibs main which can be a bit finnicky.
+ 3. Have a binary for the application and a shared library for the sandbox. Shared library overwrites the std library's entry point function and sets up the sandbox before calling the main function. Then the application can be run like this: `LD_PRELOAD=./sandbox.so ./my_app arg1 arg2`. (`LD_PRELOAD` is used to override symbols in the stock libraries by creating a library with the same symbols). This can be a ok approach but relies on overriding stdlibs main which can be a bit finnicky.
 
 Since this is just a educational project, I am not worried about modularity or scalability of the sandbox to other apps, so I decided to go with approach#2 solely for ease of development.
 
@@ -99,7 +108,7 @@ This is a system call provided by the linux kernel.
 
 All future system calls will see "/tmp/sandbox_tmp" as the root "/". Therefore this provides the filesystem isolation which is a crucial element of our sandbox.
 
-It is not fullproof and possible to escape this chroot jail using tricks mentioned in the [manual](https://man7.org/linux/man-pages/man2/chroot.2.html).
+It is not fullproof and possible to escape this chroot jail using tricks mentioned in the [manual](https://man7.org/linux/man-pages/man2/chroot.2.html). Also, often this is not very flexible when used alone like this. What if you want to isolate the files produced by the sandboxed application from the processes running outside the sandbox? Or if you want to mount a new tmpfs just for this process? Or if you want to share (or bind mount) a local directory into the sandbox, like the `-v` or `--mount` option in docker - ` -v /data/dir/outside:/data/dir/inside_sandbox`. Lucky for us, Linux provides namespaces which can be used to solve these problems.
 
 ## namespaces
 
@@ -112,6 +121,8 @@ Linux namespaces are a mechanism provided by the kernel to make it appear to the
  - PID namespace - isolate process ids
  - Cgroup namespace - virtualize pathnames exposed in certain /proc/<PID> files that show cgroup membership of a process
  - User namespace - virtualize user and group ids (uid and gid)
+
+Every process runs inside one instance of each namespace type. Most of the time its just the root namespace.
 
 Lets try to see a couple of these in more details.
 
@@ -131,14 +142,18 @@ void setup_namespaces() {
 
 New namespaces can be created using `clone`, `unshare` system calls. In the snippet above, we specify the flags to move into a new mount namespace, as well as pid and user namespaces.
 
-After that is done, we can manipulate the mounts in the namespace.
+After that is done, we can manipulate the mounts in the namespace to our liking.
+
 ```c
 // error handling removed for sake of compactness
 void setup_mounts(void) {
-    //make your mount points private so that outside world cant see them
+    // use MS_PRIVATE flag to indicate that the file system mount should be
+    // marked as private to the sandox's namespace.
+    // It ensures that any subsequent mounts or unmounts made by the caller or
+    // its children do not affect the same mount points in other namespaces
     int ret = mount(NULL, "/", NULL, MS_PRIVATE | MS_REC , NULL);
 
-    // /tmp/sandbox_tmp outside will be root i.e. / inside sandbox
+    // /tmp/sandbox_tmp outside will be root (i.e. /) inside sandbox
     char tmp_dir[] = "/tmp/sandbox_tmp";
     create_dir_if_not_exists(tmp_dir);
     // whatever was in /tmp/sandbox_tmp/ from before is still there
@@ -147,18 +162,24 @@ void setup_mounts(void) {
     // not be visible to sandbox anylonger
     ret = mount("tmpfs", tmp_dir, "tmpfs", 0, NULL);
 
-    // if want to share a dir from outside into sandbox
+    // if want to share a dir from outside into sandbox, can do something like this
     // /tmp/sandbox_tmp will become root / later so in order to make
     // the play dir accessible inside the sandbox as /my_play_dir
     // we create it in /tmp/sandbox_tmp/
     char common_dir[] = "/tmp/sandbox_tmp/my_play_dir";
+    char play_dir_outside_sandbox[] = "/home/ankurs4/src/my_play_dir";
     create_dir_if_not_exists(common_dir);
-    ret = mount(PLAY_DIR_OUTSIDE_SANDBOX, common_dir, NULL, MS_BIND | MS_REC, NULL);
+    ret = mount(play_dir_outside_sandbox, common_dir, NULL, MS_BIND | MS_REC, NULL);
 
-    // code for chrooting into /tmp/sandbox_tmp (see above) 
+    // finally we chroot to /tmp/sandbox_tmp
+    // code for chrooting (see above)
 }
 ```
 
+### PID namespace
+
+If you notice carefully we called `unshare` with `CLONE_NEWPID` flag as well. This means that the
+
 ### Manipulating environment variables
 
-It is worth mentioning that nix is a build tool but with nix-shell, just by manipulating the environment variables like the PATH, LD_LIBRARY_PATH etc, it provides meaningful, albeit leaky, isolation at runtime. It is a useful means of isolation because it is very simple. Although it should obviously be used only if you trust the application to respect the environment variables and not escape the filmsy sandbox. But the effectiveness of `nix-shell` tells me that it can work.
+It is worth mentioning that nix is a build tool but with nix-shell, just by manipulating the environment variables like the PATH, LD_LIBRARY_PATH etc, it provides meaningful, albeit leaky, isolation at runtime. It is a useful means of isolation because it is very simple. Although it should obviously be used only if you trust the application to respect the environment variables and not escape the filmsy sandbox. But the effectiveness of `nix-shell` tells me that it is effective in scenarios such as development environments.
