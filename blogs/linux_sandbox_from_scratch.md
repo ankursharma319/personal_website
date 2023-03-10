@@ -25,37 +25,86 @@ Clearly plain processes are often not isolated enough for a lot of use cases.
 
 ## Why run untrusted code in priviliged mode?
 
-A common thread in the above is that a process needs to have sufficient priviliges in order to do evil things. For e.g. in order to access a file, it must have the appropriate read, write and execute permissions for the user and group of the effective user of the process .
+A common thread in the above is that a process needs to have sufficient priviliges in order to do evil things. For e.g. in order to access a file, it must have the appropriate read, write and execute permissions for the user and group of the effective user of the process. For example:
 
 ```bash
-ls -lsah ~/.ssh/config
-# 8 -rw-r--r--   1 ankurs4  staff   1.1K Mar  1 00:23 config
-# can only by written to by user running as ankurs4 (or root)
+$ ls -lsah ~/.ssh/authorized_keys
+4.0K -rw-------  1 ubuntu ubuntu  406 Dec  3 12:57 authorized_keys
+# can only by read and written to by processing running as user ubuntu (or root)
 
-ps aux | grep -i my_process
-# TODO
+$ ls -lsah /etc/zshrc
+4.0K -rw-r--r-- 1 root root 161 Dec  3 13:43 /etc/zshrc
+# can be read by anyone but written to only by root
+
+$ ps aux | grep -i my_executable
+ubuntu     1227660  0.0  0.0   2828   356 pts/2    S+   21:43   0:00 ./_build/release/my_executable
+# this process is running as ubuntu so it can read or write to the authorized_keys file
+# but only read zshrc file, not write to it.
 ```
 
 A process running as root will be able to do a lot of bad things to filesystem, system resources & other processes. Now the question, you might ask is: why not just run the process as a user with very little or no permissions (limited capabilities and limited filesystem access). Well, that is possible, but sometimes a process legitimately needs elevated access to perform its work. For e.g. - server software such as web servers or databases may require root-level access in order to listen on privileged ports or to access certain system resources. The traditional way this was done (and is still done quite widely) is to run the processes as root.
 
 ## Aside: setuid/setgid
 
-Normally, a process gets the same access as the user who runs it. However, that is not always enough. Instead of giving a lot of privilieges to all users, there is an alternative. Binary executable files can be given special permission via setuid and setgid bit. So whenever they are executed, they get additional root priviliges that the user who ran them might not have.
+Normally, a process gets the same access as the user who runs it. However, that is not always enough. Instead of giving a lot of privilieges to all users, there is an alternative. Binary executable files can be given special permission via setuid and setgid bit. So whenever they are executed, they get the same priviliges as the owner of the file, and not the user who is executing the file.
 
 ```bash
-NEEDS CODE EXMAPLE
+$ whoami
+ubuntu
+
+$ ls executable
+16K -rwxr-xr-x 1 root root 16K Feb 27 01:38 executable*
+
+$ ./executable
+Hello world, Real uid = 1001 Effective uid = 1001
+
+$ sudo chmod u+s executable
+
+$ ls executable
+16K -rwsr-xr-x 1 root root 16K Feb 27 01:38 memeater_executable*
+# notice the executable bit is set to s instead of x
+# this binary will now be run as root
+
+$ ./executable
+Hello World, Real uid = 1001, Effective uid = 0
+# uid 0 denotes root
 ```
 
 ## Capabilities
 
-Running processes as root (using setgid/setuid bit or running as root user) is often an all or nothing approach. That is not great. What if you wanted to give a process ability to do only one priviliged thing, which is be able to set process scheduling priority. In order to address this, linux divided the root powers into smaller units, called capabilities. If a process runs as root, it has all capabilities.
+Running processes as root (using setgid/setuid bit or running as root user) is often an all or nothing approach. That is not great. What if you wanted to give a process ability to do only one priviliged thing. In order to address this, linux divided the root powers into smaller units, called capabilities. If a process runs as root, it has all capabilities.
 
-There are around 40 capabilities in total - e.g. CAP_SYS_TIME capability is needed to change system time.
-Unfortunately there is still a big CAP_SYS_ADMIN capability which grants a large portion of power.
+There are around 40 capabilities in total - e.g. CAP_SYS_TIME capability is needed to change system time, or CAP_SYS_PTRACE is needed to be able to call ptrace(2) system call and monitor memory of another process.
+
+Below example shows how an executable can be granted capabilities, which will be inherited by the process when it is run by the user (depending on some rules, but we wont get into those details).
 
 ```bash
-needs code
+$ whoami
+ubuntu
+
+$ ls executable
+16K -rwxr-xr-x 1 ubuntu ubuntu  16K Mar 10 22:53 executable*
+# executable is a simple program which calls the nice system call
+
+$ getcap executable
+
+$ ./executable
+Hello world, trying to lower nice value
+Failed to set nice value: Operation not permitted
+
+$ sudo setcap cap_sys_nice+eip executable
+
+$ getcap executable
+executable cap_sys_nice=eip
+
+$ ./executable
+Hello world, trying to lower nice value
+Succeeded, bye
 ```
+
+This is better than the "root or nothing" approach, but unfortunately there is still a big CAP_SYS_ADMIN capability which grants a large portion of power.
+
+## High level structure
 
 Now we have an idea of why we need more isolation, lets start to implement something using some primitives that linux provides:
 
@@ -65,9 +114,7 @@ Now we have an idea of why we need more isolation, lets start to implement somet
 - seccommp
 - LD_PRELOAD trick
 
-## High level structure
-
-There is 3 different ways, we can go about this, depending on the use case:
+There is 3 different ways, we can structure our sandbox:
 
  1. Have a separate binary for the sandbox which setups the sandbox and `exec`s the application. Then you would call your application like this.: `./sandbox ./my_app arg1 arg2`. Doing it this way is quite nice and flexible. This is kind of what docker does with its `docker run` command.
 
@@ -92,6 +139,35 @@ There is 3 different ways, we can go about this, depending on the use case:
  3. Have a binary for the application and a shared library for the sandbox. Shared library overwrites the std library's entry point function and sets up the sandbox before calling the main function. Then the application can be run like this: `LD_PRELOAD=./sandbox.so ./my_app arg1 arg2`. (`LD_PRELOAD` is used to override symbols in the stock libraries by creating a library with the same symbols). This can be a ok approach but relies on overriding stdlibs main which can be a bit finnicky.
 
 Since this is just a educational project, I am not worried about modularity or scalability of the sandbox to other apps, so I decided to go with approach#2 solely for ease of development.
+
+For demo purposes, the `application_run` will be run both after and before the `setup_sandbox` and will print:
+
+1) user & group id of the processes
+2) process & parent process id
+3) capabilities of the processes
+4) contents of the root directory
+5) other processes visible (list /proc/ basically)
+6) network interfaces visible to the process.
+
+We will also allocate large blocks of memory to see how the process behaves before and after the sandbox is setup.
+
+Ok so the higher level flow of the `setup_sandbox()` function is as follows.
+
+```c
+void setup_sandbox(void) {
+	printf("%s", "\n============== SETTING UP SANDBOX ===============\n");
+	setup_cgroup();
+	setup_namespaces();
+	setup_mounts();
+    fork_into_new_child_proc();
+    // rest of the code runs in the child with pid 1
+    mount_proc();
+    setup_network_namespace();
+    setup_seccomp();
+}
+```
+
+But lets start by looking at chroot.
 
 ## chroot
 
@@ -122,7 +198,7 @@ Linux namespaces are a mechanism provided by the kernel to make it appear to the
  - Cgroup namespace - virtualize pathnames exposed in certain /proc/<PID> files that show cgroup membership of a process
  - User namespace - virtualize user and group ids (uid and gid)
 
-Every process runs inside one instance of each namespace type. Most of the time its just the root namespace.
+Every process runs inside one instance of each namespace type. Most of the time its just the root namespace. But by moving a process or group of processes into a new namespace, we can provide isolation.
 
 Lets try to see a couple of these in more details.
 
@@ -167,7 +243,7 @@ void setup_mounts(void) {
     // the play dir accessible inside the sandbox as /my_play_dir
     // we create it in /tmp/sandbox_tmp/
     char common_dir[] = "/tmp/sandbox_tmp/my_play_dir";
-    char play_dir_outside_sandbox[] = "/home/ankurs4/src/my_play_dir";
+    char play_dir_outside_sandbox[] = "/home/ubuntu/src/my_play_dir";
     create_dir_if_not_exists(common_dir);
     ret = mount(play_dir_outside_sandbox, common_dir, NULL, MS_BIND | MS_REC, NULL);
 
@@ -176,9 +252,111 @@ void setup_mounts(void) {
 }
 ```
 
+Comparing the contents of the root dir as visible to the application before and after setting up the sandbox shows us that it worked:
+
+Before the sandbox is setup:
+```
+============== Root dir (/) ===============
+  . (dir)
+  run (dir)
+  lib64 (link)
+  sbin (link)
+  media (dir)
+  lib32 (link)
+  nix (dir)
+  sys (dir)
+  opt (dir)
+  bin (link)
+  snap (dir)
+  libx32 (link)
+  etc (dir)
+  var (dir)
+  lost+found (dir)
+  proc (dir)
+  .. (dir)
+  srv (dir)
+  boot (dir)
+  root (dir)
+  tmp (dir)
+  lib (link)
+  usr (dir)
+  mnt (dir)
+  home (dir)
+  dev (dir)
+```
+
+After the sandbox is setup:
+```
+============== Root dir (/) ===============
+  . (dir)
+  .. (dir)
+  proc (dir)
+  my_play_dir (dir)
+```
+
 ### PID namespace
 
-If you notice carefully we called `unshare` with `CLONE_NEWPID` flag as well. This means that the
+If you notice carefully we called `unshare` with `CLONE_NEWPID` flag as well. In case of pid namespaces, the unshare call does not move the process into the new namespace. Instead the first child process cloned from this process will be the init process (pid 1) in the new namespace.
+
+So we fork our current process and the parent process does nothing except wait for the child to finish, while child process continues and executes the rest of the sandbox and the application code.
+
+```c
+void fork_into_new_child_proc(void) {
+	printf("Forking into new child with pid 1\n");
+	// need to move the current process into the new pid namespace manually
+	// unshare creates the pid namespace without automatically moving current
+	// process into that namespaces
+	// the first child of the current process (after unshare has been called)
+	// will be pid 1 in the new namespace
+
+	pid_t res_pid = fork();
+	if (res_pid == 0) {
+		// child process
+		puts("Inside child process");
+		// just continue with the rest of the program flow
+        return;
+	} else {
+		// parent process
+		puts("Inside parent process, waiting for child to finish up");
+		int status = -1;
+		waitpid(res_pid, &status, 0);
+		if (WIFEXITED(status)) {
+			exit(WEXITSTATUS(status));
+		} else {
+			puts("Child process didnt exit normally");
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+```
+
+And since we are in a new PID namespace, lets see what effect this has on the the pids visible to the process under the proc filesystem at `/proc`:
+
+Before the sandbox:
+
+```
+============== All PIDs ===============
+  1 (dir)
+  2 (dir)
+  3 (dir)
+  4 (dir)
+  5 (dir)
+    .
+    .
+    .
+  1228574 (dir)
+  1228575 (dir)
+  1228576 (dir)
+  1228577 (dir)
+```
+
+After the sandbox is setup:
+```
+============== All PIDs ===============
+  1 (dir)
+```
+
+And that process with pid 1 is ofcourse the sandbox+application process. Note that this is the child process. The parent process continues to remain in the original pid namespace.
 
 ### Manipulating environment variables
 
