@@ -1,7 +1,7 @@
 {
     "id":"linux_sandbox_from_scratch",
     "title": "Implementing a Docker like sandbox in Linux, from scratch!",
-    "description": "A guide to help understand how the linux primitives can be used to isolate processes and resources on a Linux system.",
+    "description": "A guide to help understand how the linux primitives can be used to isolate processes and resources",
     "author": "Ankur Sharma",
     "date": "2022-09-20",
     "keywords": ["linux", "sandbox", "containers", "docker", "c++"],
