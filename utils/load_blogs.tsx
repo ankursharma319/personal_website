@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { remark } from 'remark';
-import html from 'remark-html';
+import { marked } from 'marked';
 
 const blogsDirectory = path.join(process.cwd(), 'blogs');
 const metadataDirectory = path.join(process.cwd(), 'blogs', 'metadata');
@@ -23,12 +22,8 @@ export async function getBlogPost(name: string): Promise<BlogPostData> {
     const fullPath = path.join(blogsDirectory, name + ".md");
     const md_content = fs.readFileSync(fullPath, 'utf8');
 
-    // Use remark to convert markdown into HTML string
-    const processedContent = await remark()
-        .use(html)
-        .process(md_content);
-
-    const html_content = processedContent.toString();
+    // Use marked to convert markdown into HTML string
+    const html_content = marked.parse(md_content);
 
     const metadata_path: string = path.join(metadataDirectory, name + '.json');
     const metadata_str: string = fs.readFileSync(metadata_path, 'utf-8');
