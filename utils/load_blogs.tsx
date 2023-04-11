@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { marked } from 'marked';
+import hljs from 'highlight.js';
 
 const blogsDirectory = path.join(process.cwd(), 'blogs');
 const metadataDirectory = path.join(process.cwd(), 'blogs', 'metadata');
@@ -23,7 +24,13 @@ export async function getBlogPost(name: string): Promise<BlogPostData> {
     const md_content = fs.readFileSync(fullPath, 'utf8');
 
     // Use marked to convert markdown into HTML string
-    const html_content = marked.parse(md_content);
+    const html_content = marked.parse(md_content, {
+        highlight: function(code, lang) {
+            const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+            return hljs.highlight(code, { language }).value;
+        },
+        langPrefix: 'hljs language-', // highlight.js css expects a top-level 'hljs' class.
+    });
 
     const metadata_path: string = path.join(metadataDirectory, name + '.json');
     const metadata_str: string = fs.readFileSync(metadata_path, 'utf-8');

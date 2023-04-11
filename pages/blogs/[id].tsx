@@ -1,5 +1,6 @@
 import MainLayout from '../../components/main_layout'
 import { BlogPostData, getAllBlogIds, getBlogPost } from '../../utils/load_blogs';
+import 'highlight.js/styles/tokyo-night-dark.css';
 
 export async function getStaticPaths() {
     const paths = getAllBlogIds();
