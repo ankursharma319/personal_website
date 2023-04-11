@@ -1,6 +1,6 @@
 import MainLayout from '../../components/main_layout'
 import { BlogPostData, getAllBlogIds, getBlogPost } from '../../utils/load_blogs';
-import 'highlight.js/styles/tokyo-night-dark.css';
+import 'highlight.js/styles/srcery.css';
 
 export async function getStaticPaths() {
     const paths = getAllBlogIds();
@@ -55,7 +55,7 @@ export default function BlogPostView(props: { blogPostData: BlogPostData }) {
         >
             <div className='flex flex-col justify-start items-start content-start min-h-full w-full gap-8 py-2'>
                 <TitleSection blogPostData={props.blogPostData}/>
-                <article className="prose prose-stone lg:prose-xl dark:prose-invert marker:text-stone-400 dark:marker:text-stone-500 prose-blockquote:border-stone-400 dark:prose-blockquote:border-stone-500">
+                <article className="prose prose-stone lg:prose-xl dark:prose-invert marker:text-stone-400 dark:marker:text-stone-500 prose-blockquote:border-stone-400 dark:prose-blockquote:border-stone-500 prose-pre:bg-stone-900 dark:prose-pre:bg-stone-900">
                     <div dangerouslySetInnerHTML={{ __html: props.blogPostData.html_content }} />
                 </article>
             </div>
