@@ -17,10 +17,9 @@ export default function AboutPage() {
                     I also have experience in fullstack web development, and machine learning.
 
                     I love to keep learning and growing. As a result, I have gathered knowledge in a breadth of topics!
-                    Jack of all trades, master of none (maybe one 😉)!
                 </p>
                 <br/>
-                <p>Checkout the <Link href="/projects"
+                <p>Checkout the <Link href="https://github.com/ankursharma319"
                         className='text-indigo-600 hover:text-indigo-700 dark:text-indigo-500  dark:hover:text-indigo-600'
                     >public projects</Link> which I have done.</p>
                 <br/>
