@@ -15,7 +15,7 @@ Are linux processes not isolated from each other? In some ways, yes, a process p
 
 However, the filesystem is shared. Process can open, read and modify directories, files, named pipes, message queues etc. (those which the process's effective user has permission to access).
 
-A process can easily get information about other processes by looking at /proc/ and further inspect and control them using ptrace system call. The ptrace() system call provides a means by which one process (the "tracer") may observe and control the execution of another process (the "tracee").
+A process can easily get information about other processes by looking at `/proc/` and further inspect and control them using `ptrace` system call. The `ptrace` system call provides a means by which one process (the "tracer") may observe and control the execution of another process (the "tracee").
 This system call is also used for implementing debuggers like gdb. Therefore, it is not far fetched that a rogue process can potentially mess with other processes if permissions are right, for e.g. changing the memory addresses and registers.
 
 Also, the hardware resources such as CPU, RAM, network interfaces etc. are shared. So it is possible for one process to hoard compute resources.
@@ -46,7 +46,7 @@ A process running as root will be able to do a lot of bad things to filesystem, 
 
 ## Aside: setuid/setgid
 
-Normally, a process gets the same access as the user who runs it. However, that is not always enough. Instead of giving a lot of privilieges to all users, there is an alternative. Binary executable files can be given special permission via setuid and setgid bit. So whenever they are executed, they get the same priviliges as the owner of the file, and not the user who is executing the file.
+Normally, a process gets the same access as the user who runs it. However, that is not always enough. Instead of giving a lot of privilieges to all users, there is an alternative. Binary executable files can be given special permission via setuid and setgid bits. So whenever they are executed, they get the same priviliges as the owner of the file, and not the user who is executing the file.
 
 ```bash
 $ whoami
@@ -74,9 +74,9 @@ Hello World, Real uid = 1001, Effective uid = 0
 
 Running processes as root (using setgid/setuid bit or running as root user) is often an all or nothing approach. That is not great. What if you wanted to give a process ability to do only one priviliged thing. In order to address this, linux divided the root powers into smaller units, called capabilities. If a process runs as root, it has all capabilities.
 
-There are around 40 capabilities in total - e.g. CAP_SYS_TIME capability is needed to change system time, or CAP_SYS_PTRACE is needed to be able to call ptrace(2) system call and monitor memory of another process.
+There are around 40 capabilities in total - e.g. `CAP_SYS_TIME` capability is needed to change system time, or `CAP_SYS_PTRACE` is needed to be able to call `ptrace` system call and monitor memory of another process.
 
-Below example shows how an executable can be granted capabilities, which will be inherited by the process when it is run by the user (depending on some rules, but we wont get into those details).
+Below example shows how an executable file can be granted capabilities, which will be inherited by the process when it is run by the user (depending on some rules, but we wont get into those details).
 
 ```bash
 $ whoami
@@ -102,13 +102,15 @@ Hello world, trying to lower nice value
 Succeeded, bye
 ```
 
-This is better than the "root or nothing" approach, but unfortunately there is still a big CAP_SYS_ADMIN capability which grants a large portion of power.
+This is better than the "root or nothing" approach, but unfortunately there is still a big `CAP_SYS_ADMIN` capability which grants a large portion of power.
 
 ## High level structure
 
+All the code examples in this blog can be seen in full [on github here](https://github.com/ankursharma319/sandboxed_app)
+
 Now we have an idea of why we need more isolation, lets start to implement something using some primitives that linux provides:
 
-- chroot system call
+- `chroot` system call
 - namespaces
 - cgroups
 - seccommp
@@ -145,7 +147,7 @@ For demo purposes, the `application_run` will be run both after and before the `
 2) process & parent process id
 3) capabilities of the processes
 4) contents of the root directory
-5) other processes visible (list /proc/ basically)
+5) other processes visible (list `/proc/` basically)
 6) network interfaces visible to the process.
 
 We will also allocate large blocks of memory to see how the process behaves before and after the sandbox is setup.
@@ -166,7 +168,7 @@ void setup_sandbox(void) {
 }
 ```
 
-But lets start by looking at chroot.
+We will get into each of these in more details, lets start by looking at `chroot`.
 
 ## chroot
 
@@ -181,9 +183,9 @@ This is a system call provided by the linux kernel.
     }
 ```
 
-All future system calls will see "/tmp/sandbox_tmp" as the root "/". Therefore this provides the filesystem isolation which is a crucial element of our sandbox.
+All future system calls will see `/tmp/sandbox_tmp` as the root `/`. Therefore this provides the filesystem isolation which is a crucial element of our sandbox.
 
-It is not fullproof and possible to escape this chroot jail using tricks mentioned in the [manual](https://man7.org/linux/man-pages/man2/chroot.2.html). Also, often this is not very flexible when used alone like this. What if you want to isolate the files produced by the sandboxed application from the processes running outside the sandbox? Or if you want to mount a new tmpfs just for this process? Or if you want to share (or bind mount) a local directory into the sandbox, like the `-v` or `--mount` option in docker - ` -v /data/dir/outside:/data/dir/inside_sandbox`. Lucky for us, Linux provides namespaces which can be used to solve these problems.
+It is not fullproof and possible to escape this chroot jail using tricks mentioned in the [manual](https://man7.org/linux/man-pages/man2/chroot.2.html). Also, often this is not very flexible when used alone like this. What if you want to isolate the files produced by the sandboxed application from the processes running outside the sandbox? Or if you want to mount a new tmpfs just for this process? Or if you want to share (or bind mount) a local directory into the sandbox, like the `-v` or `--mount` option in docker - ` -v /data/dir/outside:/data/dir/inside_sandbox`. Lucky for us, the linux kernel provides namespaces which can be used to solve these problems.
 
 ## Namespaces
 
@@ -194,7 +196,7 @@ Linux namespaces are a mechanism provided by the kernel to make it appear to the
  - IPC namespace - isolate Message Queues (MQ), shared memory, semaphores
  - Network namespace - isolate network interfaces, ip adresses, routing tables, netfilter (firewall rules), socket-port number space, unix domain sockets
  - PID namespace - isolate process ids
- - Cgroup namespace - virtualize pathnames exposed in certain /proc/<PID> files that show cgroup membership of a process
+ - Cgroup namespace - virtualize pathnames exposed in certain `/proc/<PID>` files that show cgroup membership of a process
  - User namespace - virtualize user and group ids (uid and gid)
 
 Every process runs inside one instance of each namespace type. Most of the time its just the root namespace. But by moving a process or group of processes into a new namespace, we can provide isolation.
@@ -217,7 +219,7 @@ void setup_namespaces() {
 
 New namespaces can be created using `clone`, `unshare` system calls. In the snippet above, we specify the flags to move into a new mount namespace, as well as pid and user namespaces.
 
-After that is done, we can manipulate the mounts in the namespace to our liking. For e.g - we mount a new tmpfs as the root (/) in our sandbox and we share a directory between the sandbox and the outside world, which whill be `/play_dir` in the sandbox and `/home/ubuntu/src/my_play_dir` outside the sandbox.
+After that is done, we can manipulate the mounts in the namespace to our liking. For e.g - we mount a new tmpfs at root (`/`) in our sandbox and share a directory between the sandbox and the outside world, which whill be `/play_dir` in the sandbox and `/home/ubuntu/src/my_play_dir` outside the sandbox.
 
 ```c
 // error handling removed for sake of compactness
@@ -340,7 +342,7 @@ Parent Process Id (PPID) = 0
 
 We can clearly see that the pid namespace is set up correctly and the process is the init process in the new namespace.
 
-And since we are in a new PID namespace, lets see what effect this has on the the pids visible to the process under the proc filesystem at `/proc`. But wait, we dont have access to /proc since we did chroot to a new temporary directory. And even if we did have access to old /proc, we want to remount it anyway because dont want to look at the /proc mounted by the root pid namespace.
+And since we are in a new PID namespace, lets see what effect this has on the the pids visible to the process under the proc filesystem at `/proc`. But wait, we dont have access to `/proc` since we did `chroot` to a new temporary directory. And even if we did have access to old `/proc`, we want to remount it anyway because dont want to look at the `/proc` mounted by the root pid namespace.
 
 So lets do that:
 
@@ -382,11 +384,11 @@ And that process with pid 1 is ofcourse the sandbox+application process. Note th
 
 ### Network namespace
 
-Lets also unshare into a new network namespace.
+Lets also `unshare` into a new network namespace.
 
  Why did we not do this together with the `unshare` call earlier where we created new mount, pid and user namespaces? The reason is that we want to move into a new network namespace only after having forked into a new child process. This can, in theory, allow us access to the sandbox network namespace in the child process and allow access to the root network namespace in the parent process. We are able to setup a bridge between the two namespaces (using iptables magic for e.g.), which is useful if we want to give internet access to the sandboxed process.
 
-```
+```c
 void setup_network_namespace(void) {
 	printf("%s", "\n============== Network Namespace ===============\n");
     unshare(CLONE_NEWNET)) {
@@ -430,9 +432,9 @@ When a new user namespace is created, the first process in that namespace has al
 
 Lets look at an example:
 
-`/proc/<PID>/uid_map` and `/proc/PID/gid_map` maps define what the uids and gids inside a namespace correspond to uid and gid outside the namespace
+`/proc/<PID>/uid_map` and `/proc/PID/gid_map` maps define what the uids and gids inside a namespace correspond to which uids and gids outside the namespace.
 
-We can write to these files. The contents of these files is lines of the form
+We can write to these special files. The contents of these files is lines of the form
 ```<id inside namespace> <id outside namespace> <length of range>```
 
 e.g. root mapping `0 1000 1` maps 0 inside namespace maps to 1000 outside
@@ -482,13 +484,13 @@ And after the sanbox is set up:
 =ep
 ```
 
-This is equivalent to all superuser capabilities. So the sandbox has all capabilities, but only for resources owned by the new user namespace. It cannot mess with resources which are owned by the original user namespace, which the new user namespace does not own (such as the hostname, since we did not move into a new UTS namespace),
+This is equivalent to all superuser capabilities. So the sandbox has all capabilities, but only for resources owned by the new user namespace. It cannot mess with resources which are owned by the original user namespace, which the new user namespace does not own (such as the hostname, since we did not move into a new UTS namespace).
 
 ## Seccomp
 
 Seccomp bpf (short for secure computing mode) is a computer security facility in the Linux kernel. It allows a process to make a one-way transition into a "secure" state where it cannot make any system calls except those which are explicitly allowlisted.
 
-It does this using Berkeley Packet Filtering. BPF is an in kernel programing language with an interpreter and jit compiler inside kernel. It basically allows to change how kernel behaves. There is a higher level library called libseccomp, which simplifies the process of setting up seccomp, so we dont have to fiddle with BPF. Lets look at some code:
+It does this using Berkeley Packet Filtering. BPF is an in kernel programing language with an interpreter and jit compiler inside kernel. It basically allows to change how kernel behaves. There is a higher level library called `libseccomp`, which simplifies the process of setting up seccomp, so we dont have to fiddle with BPF. Lets look at some code:
 
 ```c
 void allow(scmp_filter_ctx ctx, int syscall) {
@@ -515,7 +517,7 @@ void setup_seccomp(void) {
 
 Whitelisting syscalls such as `open`, `read` allows the sandbox process to read files and directories in its filesystem. There are many other syscalls that are not shown here that I had to whitelist for the sandbox to work.
 
-After moving into the sandbox, if the process were to make a system call which is not whitelisted, the process will be killed.
+After moving into the sandbox, if the process were to make a system call which is not whitelisted, the process will be killed. This is super useful as a security feature.
 
 ## Cgroups (v2)
 
@@ -523,7 +525,7 @@ Cgroups is a facility provided by the linux kernel for resource management. A cg
 
 Cgroups allow us to limit resource usage, prioritize resources for certain groups, monitor resource usage and so on.
 
-To work with cgroups, we simply need to interact with filesystem, mainly under /sys/fs/cgroup and /proc
+To work with cgroups, we simply need to interact with filesystem, mainly under `/sys/fs/cgroup` and `/proc`.
 
 To check cgroup of a process:
 `cat /proc/<PID>/cgroup`
@@ -533,7 +535,7 @@ To create a new cgroup
 
 Creating a cgroup like this will also automatically create dirs and files inside `/sys/fs/cgroup/mygroup` which can be used to manage the cgroup and move processes into it.
 
-```
+```bash
 $ ls /sys/fs/cgroup/mygroup
 total 0
 0 drwxr-xr-x 2 root root 0 Mar  9 18:34 ./

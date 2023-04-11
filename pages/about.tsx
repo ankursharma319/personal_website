@@ -13,16 +13,12 @@ export default function AboutPage() {
                 <h1 className='text-4xl'>About me!</h1>
                 <br />
                 <p>
-                    I am a Software Engineer at Cisco, experienced in embedded systems development.
-                    I also have experience in fullstack web development, and machine learning.
-
-                    I love to keep learning and growing. As a result, I have gathered knowledge in a breadth of topics!
+                    I am a Software Engineer at Cisco, experienced with embedded systems & backend development, including C, C++, Python, Javascript and Linux. I love to keep learning and growing. When I am not coding, you can find me spending hours tinkering with my development enivornment tools and configurations. I also enjoy watching and playing (when not being annoyed by some random injury) cricket and football (huge Cristiano fan!).
                 </p>
                 <br/>
                 <p>Checkout the <Link href="https://github.com/ankursharma319"
                         className='text-indigo-600 hover:text-indigo-700 dark:text-indigo-500  dark:hover:text-indigo-600'
                     >public projects</Link> which I have done.</p>
-                <br/>
                 <p>
                     Reach out to me on <Link href="https://www.linkedin.com/in/ankur-sharma-449660109/"
                         className='text-indigo-600 hover:text-indigo-700 dark:text-indigo-500  dark:hover:text-indigo-600'

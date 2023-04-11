@@ -23,7 +23,7 @@ export default function Home() {
           <br />
           <h2 className='text-2xl'>I am a software engineer</h2>
           <br />
-          <p> Here I blog about random topics including C/C++, Linux, etc. Much of what I post is essentially notes I made for myself while exploring a topic or a problem and would like to help others by sharing.</p>
+          <p> Here I blog about random topics including C/C++, Linux, etc. Much of what I post is essentially notes I made for myself while exploring a topic/problem and would like to help others by sharing.</p>
           <br />
           <Link href="/about" className='bg-indigo-300 hover:bg-indigo-400 dark:bg-indigo-900 dark:hover:bg-indigo-800 rounded p-3'>Hire me!</Link>
         </div>
