@@ -97,7 +97,7 @@ export async function getAllBlogPostsMetadatOnly(): Promise<BlogPostMetadata[]> 
         return 0;
       }
 
-    blog_posts_metadatas.sort(compare_blog_by_date);
+    blog_posts_metadatas.sort(compare_blog_by_date).reverse();
 
     return blog_posts_metadatas;
 
