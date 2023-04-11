@@ -32,8 +32,8 @@ function TagsView({tags}:{tags:string[]}) {
 }
 
 function TitleSection({blogPostData}: {blogPostData:BlogPostData}) {
-    return <div className='flex flex-col justify-start items-start content-start w-full border-b-2 border-stone-400 dark:border-stone-700'>
-    <div className="prose prose-stone lg:prose-xl dark:prose-invert">
+    return <div className='flex flex-col justify-start items-start content-start border-b-2 border-stone-400 dark:border-stone-700'>
+    <div className="prose prose-stone max-w-none lg:prose-xl dark:prose-invert">
     <h1>{blogPostData.title}</h1>
     <h3>{blogPostData.description}</h3>
     <p className='text-stone-600 dark:text-stone-400 text-lg'>
@@ -53,9 +53,9 @@ export default function BlogPostView(props: { blogPostData: BlogPostData }) {
             description={props.blogPostData.description}
             keywords={props.blogPostData.keywords.join(" ")}
         >
-            <div className='flex flex-col justify-start items-start content-start min-h-full w-full gap-8 py-2'>
+            <div className='flex flex-col justify-start items-start content-start min-h-full gap-8 py-2'>
                 <TitleSection blogPostData={props.blogPostData}/>
-                <article className="prose prose-stone lg:prose-xl dark:prose-invert marker:text-stone-400 dark:marker:text-stone-500 prose-blockquote:border-stone-400 dark:prose-blockquote:border-stone-500 prose-pre:bg-stone-900 dark:prose-pre:bg-stone-900">
+                <article className="prose prose-stone max-w-none lg:prose-xl dark:prose-invert marker:text-stone-400 dark:marker:text-stone-500 prose-blockquote:border-stone-400 dark:prose-blockquote:border-stone-500 prose-pre:bg-stone-900 dark:prose-pre:bg-stone-900">
                     <div dangerouslySetInnerHTML={{ __html: props.blogPostData.html_content }} />
                 </article>
             </div>
